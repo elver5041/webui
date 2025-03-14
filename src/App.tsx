@@ -7,10 +7,6 @@ import "./index.css";
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:5041`
 
-interface Task {
-  name:string
-  port:Number|null
-}
 
 const App: Component = () => {
   const [items, setItems] = createSignal<Array<string>>([]);
@@ -22,10 +18,11 @@ const App: Component = () => {
     try {
       const task_response = await fetch(`${API_URL}/tasks`);
       const task_result:Array<string> = await task_response.json();
+      setItems(task_result);
       const processes_response = await fetch(`${API_URL}/processes`);
       const processes_result:Array<Task> = await processes_response.json();
       setData(processes_result);
-      setItems(task_result);
+      console.log(data())
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -45,26 +42,26 @@ const App: Component = () => {
   return (
     <div class={styles.App}>
       <header class={styles.header}>
-        {/*<button onclick={shutDown}>close</button>*/}
+        <button onclick={shutDown}>close</button>
         <br/>
-        monitors 
+        <p>monitors</p>
         <div style="padding-bottom: 0.5rem;">
-          <button onclick={monitorOn}>on</button><button onclick={monitorOff}>off</button>
+          <button onclick={monitorOn}>on</button>
+          <button onclick={monitorOff}>off</button>
         </div>
-        {
-          loading()?
-          (<p>loading...</p>)
-          :
-          items().map(item => (
-            <Processes 
-              apiurl={API_URL}
-              item={item} 
-              onUpdate={async () => await fetchData()} 
-              isopen={isOpen(item)} 
-              hasredirect={hasRedirect(item)}
-            />
-          ))
-        }
+        <div>
+          { loading() 
+            ? <p>loading...</p>
+            : items().map(item => (
+              <Processes 
+                apiurl={API_URL}
+                item={item}
+                isopen={isOpen(item)}
+                hasredirect={hasRedirect(item)}
+              />
+            ))
+          }
+        </div>
       </header>
     </div>
   );

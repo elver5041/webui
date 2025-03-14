@@ -5,14 +5,14 @@ import styles from './App.module.css';
 enum Status {
   Closed,
   Loading,
-  Open,
   Running,
+  Served,
 }
+
 
 interface MyComponentProps {
   apiurl: string;
   item: string;
-  onUpdate: () => void;
   isopen: boolean;
   hasredirect: boolean;
 }
@@ -32,68 +32,76 @@ async function fetchPlus(url:string, method:string="GET") {
   }); 
 }
 
+
 const Processes: Component<MyComponentProps> = (props) => {
   const [status, setStatus] = createSignal(Status.Closed)
   let retryInterval: number | undefined;
 
+  const Update = async () => {
+    try {
+      const processes_response = await fetch(`${props.apiurl}/processes/${props.item}`);
+      const processes_result:Task = await processes_response.json();
+      setStatus(processes_result.status);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } 
+  };
+
+  const isOpen = ()=>{
+    return status() != Status.Closed
+  }
+
   const openTask = async (item:string) => {
-    await fetchPlus(`${props.apiurl}/open/${item}`, "POST")
+    await fetchPlus(`${props.apiurl}/processes/${item}`, "POST");
+    
+    const processes_response = await fetch(`${props.apiurl}/processes/${props.item}`);
+    const processes_result:Task = await processes_response.json();
+    setStatus(processes_result.status);
+    
+    Update()
   }
 
   const closeTask = async (item:string) => {
-    await fetchPlus(`${props.apiurl}/close/${item}`, "DELETE");
-    props.onUpdate();
+    await fetchPlus(`${props.apiurl}/processes/${item}`, "DELETE");
+    Update();
   }
 
   const handleRedirect = () => {
-    window.location.href = `http://100.127.215.111:5041/redirect/${props.item}`; 
+    window.location.href = `${props.apiurl}/processes/${props.item}/redirect`;
   }
 
-  const checkUrl = async () => {
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 500);
-      const response = await fetch(`http://100.127.215.111:5041/redirect/${props.item}`, { method: "GET" , signal: controller.signal });
-      clearTimeout(id);
-
-      if (response.ok) {
-        setStatus(Status.Running);
-        console.log(props.item, "running");
-        return true;
-      }
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        console.error("Request timed out");
-      } else {
-        console.error("Error fetching URL:", error);
-      }
-    }
-    setStatus(Status.Loading);
-    console.log(props.item, "loading");
-    return false;
+  const checkStatus = async () => {
+    const response = await fetch(`${props.apiurl}/processes/${props.item}`)
+      .then((response)=>{
+        if (response.ok) {
+          return response.json()
+        }
+      }).then((data:Task)=>{
+        return data.status;
+      });
+    setStatus(response);
   };
 
-  // Retry logic
+
   const startRetry = () => {
     retryInterval = setInterval(async () => {
-      const isAvailable = await checkUrl();
-      if (isAvailable) {
+      await checkStatus();
+      if (status()==Status.Served) {
         clearInterval(retryInterval);
       }
     }, 1000);
   };
 
-  // Cleanup interval on component unmount
   onCleanup(() => clearInterval(retryInterval));
   
   const mainLoop = async () => {
     if (props.isopen) {
       if (!props.hasredirect){
-        setStatus(Status.Open)
+        setStatus(Status.Running)
         console.log(props.item, "open")
       }
       else {
-        await checkUrl();
+        await checkStatus();
         if (status()===Status.Loading)
           startRetry();
       }
@@ -104,10 +112,10 @@ const Processes: Component<MyComponentProps> = (props) => {
 
   return (
     <div style="padding-top: 0.5rem;">
-      {props.item}:
-      <button disabled={props.isopen} onclick={() => openTask(props.item)}>open</button>
-      {props.isopen && <button onclick={() => closeTask(props.item)}>close</button>}
-      {props.isopen && props.hasredirect && <button disabled={status()!==Status.Running} onclick={() => handleRedirect()}>redirect</button>}
+      {`${props.item}: `}
+      <button disabled={isOpen()} onclick={() => openTask(props.item)}>open</button>
+      {isOpen() && <button onclick={() => closeTask(props.item)}>close</button>}
+      {isOpen() && props.hasredirect && <button disabled={status()==Status.Served} onclick={() => handleRedirect()}>redirect</button>}
     </div>
   );
 };

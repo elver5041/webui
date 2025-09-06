@@ -1,13 +1,12 @@
-enum Status {
-    Closed,
-    Loading,
-    Running,
-    Served,
+export enum Status {
+    Closed = "closed",
+    Loading = "loading",
+    Running = "running",
+    Served = "served",
 }
   
-  
-interface Task {
+export interface Task {
     name:string
-    port:Number|null
+    port:number|null
     status:Status
 }
